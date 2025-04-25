@@ -17,6 +17,23 @@ class ToolType(str, Enum):
     TOKEN_HISTORY = "token_history"
     HOLDERS_ANALYSIS = "holders_analysis"
     CRYPTO_NEWS = "crypto_news"
+    
+    # Типы инструментов HyperLiquid
+    HYPERLIQUID_PRICE = "hyperliquid_price"
+    HYPERLIQUID_KLINES = "hyperliquid_klines"
+    HYPERLIQUID_TRADE = "hyperliquid_trade"
+    HYPERLIQUID_CONFIRM_TRADE = "hyperliquid_confirm_trade"
+    HYPERLIQUID_MARKET_INFO = "hyperliquid_market_info"
+    HYPERLIQUID_ACCOUNT_INFO = "hyperliquid_account_info"
+    
+    # Типы инструментов LlamaFeed
+    LLAMAFEED_NEWS = "llamafeed_news"
+    LLAMAFEED_TWEETS = "llamafeed_tweets"
+    LLAMAFEED_HACKS = "llamafeed_hacks"
+    LLAMAFEED_UNLOCKS = "llamafeed_unlocks"
+    LLAMAFEED_RAISES = "llamafeed_raises"
+    LLAMAFEED_POLYMARKET = "llamafeed_polymarket"
+    LLAMAFEED_MARKET_SUMMARY = "llamafeed_market_summary"
 
 
 # === Модели для get_token_price ===

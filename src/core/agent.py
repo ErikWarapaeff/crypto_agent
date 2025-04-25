@@ -8,6 +8,8 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langgraph.prebuilt import ToolNode
 
+from .deep_research import DeepResearchManager
+
 from config.settings import LLM_MODEL, LLM_TEMPERATURE
 from tools import (
     get_token_price,
@@ -17,7 +19,23 @@ from tools import (
     analyze_pools_geckoterminal,
     get_token_historical_data,
     analyze_token_holders,
-    # fetch_crypto_news
+    # fetch_crypto_news,
+    # Добавляем новые инструменты HyperLiquid
+    get_crypto_price,
+    get_klines_history,
+    execute_trade,
+    confirm_trade,
+    get_market_info,
+    get_account_info,
+        
+    # Инструменты LlamaFeed
+    get_crypto_news,
+    get_crypto_tweets,
+    get_crypto_hacks,
+    get_token_unlocks,
+    get_project_raises,
+    get_polymarket_data,
+    get_market_summary
 )
 from models.state import AgentState, ToolCall, ToolResult
 from models.tool_schemas import ToolType
@@ -40,7 +58,24 @@ class CryptoAgent:
             analyze_pools_geckoterminal,
             get_token_historical_data,
             analyze_token_holders,
-            # fetch_crypto_news
+            # fetch_crypto_news,
+            
+            # Инструменты HyperLiquid
+            get_crypto_price,
+            get_klines_history,
+            execute_trade,
+            confirm_trade,
+            get_market_info,
+            get_account_info,
+            
+            # Инструменты LlamaFeed
+            get_crypto_news,
+            get_crypto_tweets,
+            get_crypto_hacks,
+            get_token_unlocks,
+            get_project_raises,
+            get_polymarket_data,
+            get_market_summary
         ]
         
         # Привязка инструментов к модели
@@ -132,6 +167,24 @@ class CryptoAgent:
     def reset_state(self) -> None:
         """Сбрасывает состояние агента."""
         self.state = AgentState()
+        
+    async def perform_deep_research(self, token_symbol: str) -> str:
+        """
+        Выполняет глубокое исследование токена.
+        
+        Args:
+            token_symbol: Символ токена для исследования
+            
+        Returns:
+            Строка с отчетом о результатах исследования
+        """
+        research_manager = DeepResearchManager(llm_model=LLM_MODEL)
+        result = await research_manager.conduct_research(self.state, token_symbol)
+        
+        # Добавляем результат исследования в историю сообщений
+        self.state.add_assistant_message(result)
+        
+        return result
 
 
 # Функция для создания экземпляра агента

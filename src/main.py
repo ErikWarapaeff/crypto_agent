@@ -11,7 +11,8 @@ from ui.interface import (
     get_multiline_input,
     display_thinking,
     display_exit_message,
-    display_separator
+    display_separator,
+    display_research_result
 )
 from core.agent import create_agent
 from rich.console import Console
@@ -45,7 +46,26 @@ async def main():
         if user_input.lower() in ["exit", "quit", "q"]:
             display_exit_message()
             break
+            
+        # Проверяем, является ли это запросом на deep research
+        if user_input.lower().startswith("/research"):
+            # Извлекаем символ токена из команды
+            parts = user_input.split(maxsplit=1)
+            if len(parts) < 2:
+                rprint("[bold red]Ошибка: укажите символ токена. Например: /research BTC[/bold red]")
+                continue
+                
+            token_symbol = parts[1].strip().upper()
+            
+            # Выполняем deep research
+            with display_thinking():
+                result = await agent.perform_deep_research(token_symbol)
+            
+            # Отображаем результат
+            display_research_result(result, token_symbol)
+            continue
         
+        # Стандартная обработка запроса
         # Засекаем время обработки запроса
         start_time = time.time()
         
