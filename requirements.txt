@@ -1,0 +1,12 @@
+langgraph==0.3.33
+langchain==0.3.24
+langchain-community==0.3.22
+langchain-core==0.3.55
+langchain-openai==0.3.14
+goat-sdk==0.1.6
+goat-sdk-plugin-coingecko==0.1.2
+aiohttp==3.11.18
+pawn_ai==0.0.2
+python-dotenv==1.1.0
+pydantic==2.11.3
+rich==13.9.4
