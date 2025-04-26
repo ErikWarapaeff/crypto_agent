@@ -4,7 +4,7 @@ from typing import List
 from langchain_core.tools import tool
 
 @tool
-async def analyze_protocol(protocol_id: str, protocol_label: str, chains_to_show: List[str]) -> str:
+def analyze_protocol(protocol_id: str, protocol_label: str, chains_to_show: List[str]) -> str:
     """
     Получает данные протокола с DeFiLlama и анализирует TVL.
 
@@ -13,16 +13,18 @@ async def analyze_protocol(protocol_id: str, protocol_label: str, chains_to_show
         protocol_label: читаемое название протокола для отображения
         chains_to_show: список сетей для анализа TVL (например, ["Ethereum", "Arbitrum"])
     """
-    async with aiohttp.ClientSession() as session:
-        url = f'https://api.llama.fi/protocol/{protocol_id}'
-        async with session.get(url) as response:
-            if response.status != 200:
-                return f"Ошибка запроса для {protocol_label}: {response.status} {response.reason}"
+    import requests
+    
+    url = f'https://api.llama.fi/protocol/{protocol_id}'
+    response = requests.get(url)
+    
+    if response.status_code != 200:
+        return f"Ошибка запроса для {protocol_label}: {response.status_code} {response.reason}"
 
-            try:
-                protocol_data = await response.json()
-            except Exception as e:
-                return f"Ошибка декодирования JSON для {protocol_label}: {e}"
+    try:
+        protocol_data = response.json()
+    except Exception as e:
+        return f"Ошибка декодирования JSON для {protocol_label}: {e}"
 
     result = f"=== {protocol_label} Summary ===\n\n"
 
