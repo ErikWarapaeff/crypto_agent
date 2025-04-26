@@ -6,6 +6,104 @@ import re
 from config.settings import setup_environment, APP_NAME, APP_COLOR, OPENAI_API_KEY
 from core.agent import create_agent
 
+from config.settings import (
+    setup_environment,
+    APP_NAME,
+    APP_COLOR,
+    OPENAI_API_KEY,
+    COINGECKO_API_KEY,
+    BITQUERY_API_KEY
+)
+
+def check_api_keys():
+    """Проверяет наличие всех необходимых API-ключей."""
+    # Проверяем только обязательный ключ OpenAI API
+    keys_set = bool(OPENAI_API_KEY)
+
+    # Проверяем ключи в session_state (на случай, если пользователь их уже ввел)
+    if not keys_set and 'api_keys' in st.session_state and 'openai' in st.session_state.api_keys:
+        keys_set = bool(st.session_state.api_keys['openai'])
+
+    return keys_set
+
+def get_api_key(key_name):
+    """Возвращает API ключ из session_state или из переменных окружения."""
+    if 'api_keys' in st.session_state and key_name in st.session_state.api_keys:
+        return st.session_state.api_keys[key_name]
+
+    # Иначе возвращаем значение из переменных окружения
+    import os
+    key_mapping = {
+        "openai": "OPENAI_API_KEY",
+        "coingecko": "COINGECKO_API_KEY",
+        "bitquery": "BITQUERY_API_KEY"
+    }
+
+    if key_name in key_mapping:
+        return os.environ.get(key_mapping[key_name], "")
+
+    return ""
+
+def show_api_key_form():
+    """Отображает форму для ввода API-ключей."""
+    st.title("🔑 Настройка API-ключей")
+
+    st.markdown("""
+    ### Необходимо ввести API-ключи для работы приложения
+
+    Эти ключи будут использоваться только в текущей сессии и не будут сохранены постоянно.
+    Для автоматической загрузки ключей, добавьте их в файл `.env` в корневой директории проекта.
+    """)
+
+    with st.form("api_keys_form"):
+        openai_key = st.text_input(
+            "OpenAI API ключ",
+            value=OPENAI_API_KEY or "",
+            type="password",
+            help="Необходим для работы с GPT-4 и другими моделями OpenAI"
+        )
+
+        coingecko_key = st.text_input(
+            "CoinGecko API ключ",
+            value=COINGECKO_API_KEY or "",
+            type="password",
+            help="Используется для получения данных о криптовалютах"
+        )
+
+        bitquery_key = st.text_input(
+            "Bitquery API ключ",
+            value=BITQUERY_API_KEY or "",
+            type="password",
+            help="Используется для анализа блокчейн-данных"
+        )
+
+        submit = st.form_submit_button("Сохранить ключи")
+
+        if submit:
+            if not openai_key:
+                st.error("⚠️ OpenAI API ключ обязателен для работы приложения!")
+                return False
+
+            # Сохраняем ключи в session_state
+            st.session_state.api_keys = {
+                "openai": openai_key,
+                "coingecko": coingecko_key,
+                "bitquery": bitquery_key
+            }
+
+            # Устанавливаем ключи в переменные окружения
+            import os
+            os.environ["OPENAI_API_KEY"] = openai_key
+            if coingecko_key:
+                os.environ["COINGECKO_API_KEY"] = coingecko_key
+            if bitquery_key:
+                os.environ["BITQUERY_API_KEY"] = bitquery_key
+
+            st.success("✅ Ключи успешно сохранены!")
+            return True
+
+    return False
+
 # Инициализация окружения
 setup_environment()
 
@@ -16,8 +114,24 @@ st.set_page_config(
     layout="wide",
 )
 
+# Проверка наличия API ключей
+keys_ready = check_api_keys()
+
+# Если ключи не установлены, показываем форму для их ввода
+if not keys_ready:
+    keys_submitted = show_api_key_form()
+
+    # Если пользователь не отправил ключи, останавливаем выполнение
+    if not keys_submitted:
+        st.stop()
+    else:
+        # Перезагружаем страницу для применения новых ключей
+        st.rerun()
+
 # Установка переменных состояния сессии
 if 'agent' not in st.session_state:
+    # Создаем агента с ключом из session_state если есть
+    openai_key = get_api_key("openai") if 'api_keys' in st.session_state else None
     st.session_state.agent = create_agent()
 
 if 'messages' not in st.session_state:
@@ -25,7 +139,7 @@ if 'messages' not in st.session_state:
 
 if 'thinking' not in st.session_state:
     st.session_state.thinking = False
-    
+
 if 'chats' not in st.session_state:
     # Структура: {chat_id: {title: "Название чата", messages: [список сообщений]}}
     st.session_state.chats = {
@@ -37,14 +151,17 @@ if 'current_chat_id' not in st.session_state:
 
 if 'chat_counter' not in st.session_state:
     st.session_state.chat_counter = 1
-    
+
 if 'chat_to_rename' not in st.session_state:
     st.session_state.chat_to_rename = None
+    
+if 'show_settings' not in st.session_state:
+    st.session_state.show_settings = False
 
 # CSS для улучшения внешнего вида
 st.markdown("""
 <style>
-    
+
     /* Стили для формы переименования */
     .sidebar .stForm {
         background-color: #f1f3f4;
@@ -52,21 +169,21 @@ st.markdown("""
         border-radius: 0.3rem;
         margin-bottom: 0.5rem;
     }
-    
+
     .sidebar .stForm .stButton {
         margin-top: 0;
     }
-    
+
     .sidebar .stTextInput > div > div > input {
         font-size: 0.9rem;
         padding: 0.3rem;
     }
-    
+
     /* Стили для сайдбара */
     .sidebar .sidebar-content {
         background-color: #f8f9fa;
     }
-    
+
     /* Стили для кнопок в сайдбаре */
     .sidebar .stButton > button {
         background-color: transparent;
@@ -76,12 +193,12 @@ st.markdown("""
         color: #333;
         width: 100%;
     }
-    
+
     .sidebar .stButton > button:hover {
         background-color: #e9ecef;
         border-radius: 0.3rem;
     }
-    
+
     /* Основные стили */
     .main .block-container {
         padding-top: 2rem;
@@ -198,7 +315,7 @@ def create_new_chat():
     chat_id = f"chat_{st.session_state.chat_counter}"
     st.session_state.chat_counter += 1
     st.session_state.chats[chat_id] = {
-        "title": f"Новый чат {st.session_state.chat_counter}", 
+        "title": f"Новый чат {st.session_state.chat_counter}",
         "messages": []
     }
     st.session_state.current_chat_id = chat_id
@@ -238,6 +355,11 @@ def process_pending_request():
             asyncio.set_event_loop(loop)
 
             try:
+                # Проверьте, использовать ли сохраненные API ключи
+                if 'api_keys' in st.session_state and 'openai' in st.session_state.api_keys:
+                    import os
+                    os.environ["OPENAI_API_KEY"] = st.session_state.api_keys['openai']
+
                 response = loop.run_until_complete(process_message(st.session_state.current_question))
                 st.session_state.messages.append({"role": "assistant", "content": response})
             except Exception as e:
@@ -256,13 +378,13 @@ def process_pending_request():
 # Обработка отправки сообщения
 def handle_submit():
     user_message = st.session_state.user_input
-    
+
     if user_message.strip():
         # Добавляем сообщение пользователя в историю
         st.session_state.messages.append({"role": "user", "content": user_message})
         # Синхронизируем с текущим чатом
         st.session_state.chats[st.session_state.current_chat_id]["messages"] = st.session_state.messages
-        
+
         # Очищаем поле ввода и устанавливаем флаг thinking
         st.session_state.user_input = ""
         st.session_state.thinking = True
@@ -272,15 +394,60 @@ def handle_submit():
 st.title(APP_NAME)
 
 # Боковая панель с историей чатов
+# В блоке с боковой панелью
 with st.sidebar:
     st.title("История чатов")
-    
+
     # Кнопка для создания нового чата
     if st.button("➕ Новый чат", key="new_chat"):
         create_new_chat()
-    
+
+    # Добавляем кнопку настроек
+    if st.button("⚙️ Настройки API", key="api_settings"):
+        st.session_state.show_settings = True
+
     st.markdown("---")
-    
+
+    # Если пользователь нажал кнопку настроек
+    if st.session_state.get('show_settings', False):
+        st.subheader("API ключи")
+        with st.form("settings_form"):
+            openai_key = st.text_input(
+                "OpenAI API",
+                value=get_api_key("openai"),
+                type="password"
+            )
+            coingecko_key = st.text_input(
+                "CoinGecko API",
+                value=get_api_key("coingecko"),
+                type="password"
+            )
+            bitquery_key = st.text_input(
+                "Bitquery API",
+                value=get_api_key("bitquery"),
+                type="password"
+            )
+
+            if st.form_submit_button("Сохранить"):
+                st.session_state.api_keys = {
+                    "openai": openai_key,
+                    "coingecko": coingecko_key,
+                    "bitquery": bitquery_key
+                }
+
+                # Обновляем переменные окружения
+                import os
+                os.environ["OPENAI_API_KEY"] = openai_key
+                os.environ["COINGECKO_API_KEY"] = coingecko_key
+                os.environ["BITQUERY_API_KEY"] = bitquery_key
+
+                # Пересоздаем агента с новыми ключами
+                st.session_state.agent = create_agent()
+
+                st.success("Настройки сохранены!")
+                st.session_state.show_settings = False  # Скрываем форму
+                st.rerun()
+
     # Список существующих чатов
     for chat_id, chat_data in st.session_state.chats.items():
         # Если этот чат в режиме редактирования
@@ -288,16 +455,16 @@ with st.sidebar:
             with st.form(key=f"rename_form_{chat_id}", clear_on_submit=True):
                 col1, col2 = st.columns([4, 1])
                 with col1:
-                    new_title = st.text_input("Новое название", value=chat_data["title"], 
+                    new_title = st.text_input("Новое название", value=chat_data["title"],
                                               key=f"new_title_{chat_id}", label_visibility="collapsed")
                 with col2:
                     submit_button = st.form_submit_button("✓")
-                    
+
                 if submit_button:
                     rename_chat(chat_id, new_title)
         else:
             col1, col2, col3 = st.columns([3, 1, 1])
-            
+
             with col1:
                 # Визуально выделяем текущий чат
                 if chat_id == st.session_state.current_chat_id:
@@ -305,13 +472,13 @@ with st.sidebar:
                 else:
                     if st.button(f"📝 {chat_data['title']}", key=f"select_{chat_id}"):
                         switch_chat(chat_id)
-            
+
             with col2:
                 # Кнопка редактирования названия
                 if st.button("✏️", key=f"edit_{chat_id}"):
                     st.session_state.chat_to_rename = chat_id
                     st.rerun()
-            
+
             with col3:
                 # Кнопка удаления чата (если их больше одного)
                 if len(st.session_state.chats) > 1:
@@ -325,12 +492,6 @@ if not st.session_state.messages:
     st.session_state.messages.append({
         "role": "assistant",
         "content": "👋 Привет! Я криптоаналитический ассистент. Задайте мне вопрос о криптовалютах, токенах, DeFi или рынке в целом!"
-    })
-
-    # Добавляем подсказку о командах
-    st.session_state.messages.append({
-        "role": "system",
-        "content": "💡 **Подсказка**: Вы можете использовать специальные команды, такие как `/research BTC` для глубокого исследования токена."
     })
 
 # Контейнер для сообщений
@@ -402,9 +563,6 @@ else:
 # Полезные подсказки внизу
 with st.expander("Список доступных команд и возможностей"):
     st.markdown("""
-    ### Доступные команды:
-    - `/research SYMBOL` - глубокое исследование токена
-    - `/price SYMBOL` - быстрый запрос цены токена
 
     ### Примеры запросов:
     - "Каковы текущие тренды на криптовалютном рынке?"
