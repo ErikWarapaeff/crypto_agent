@@ -7,7 +7,7 @@ from rich.markdown import Markdown
 from rich.live import Live
 from rich.text import Text
 from rich import box
-
+from typing import List, Dict, Any  
 from config.settings import APP_NAME, APP_COLOR
 
 # Инициализация Rich консоли
@@ -82,9 +82,9 @@ def get_multiline_input():
     
     return "\n".join(lines)
 
-def display_thinking():
-    """Показывает анимацию пока модель думает."""
-    return console.status("[bold green]Модель думает...", spinner="dots")
+def display_thinking(message: str = "Модель думает...") -> Console.status:
+    """Показывает анимацию с кастомным сообщением."""
+    return console.status(f"[bold green]{message}[/bold green]", spinner="dots")
 
 def display_exit_message():
     """Отображает сообщение при выходе из приложения."""
@@ -108,3 +108,68 @@ def display_research_result(result: str, token_symbol: str):
     
     console.print("\n[dim italic]Исследование завершено. Используйте эти данные на свой страх и риск.[/dim italic]")
     display_separator()
+    
+    
+def display_task_status(task_info: Dict[str, Any]) -> None:
+    """Отображает статус конкретной задачи."""
+    table = Table(box=box.ROUNDED, title="Статус задачи")
+    table.add_column("Параметр", style="cyan")
+    table.add_column("Значение", style="magenta")
+    
+    status_colors = {
+        "completed": "green",
+        "in_progress": "yellow",
+        "failed": "red"
+    }
+    
+    for key, value in task_info.items():
+        if key == "status":
+            color = status_colors.get(value, "white")
+            value = f"[{color}]{value}[/{color}]"
+        table.add_row(key, str(value))
+    
+    console.print(table)
+
+def display_agents_list(agents: Dict[str, Any]) -> None:
+    """Отображает список доступных агентов."""
+    table = Table(box=box.ROUNDED, title="Список агентов")
+    table.add_column("ID", style="cyan")
+    table.add_column("Роль", style="magenta")
+    table.add_column("Статус", style="green")
+    
+    for agent_id, agent in agents.items():
+        table.add_row(
+            agent_id,
+            agent.role.value,
+            "[green]Активен[/green]" if agent.state else "[red]Неактивен[/red]"
+        )
+    
+    console.print(table)
+
+def display_task_execution_results(results: List[Dict[str, Any]]) -> None:
+    """Отображает результаты выполнения задач."""
+    table = Table(box=box.ROUNDED, title="Результаты задач")
+    table.add_column("ID задачи", style="cyan")
+    table.add_column("Статус", style="magenta")
+    table.add_column("Результат")
+    
+    for result in results:
+        status = "[green]Успех[/green]" if not isinstance(result.get('result'), Exception) else "[red]Ошибка[/red]"
+        table.add_row(
+            result['task_id'],
+            status,
+            str(result['result'])[:100] + "..." if len(str(result['result'])) > 100 else str(result['result'])
+        )
+    
+    console.print(table)
+
+def display_system_stats(stats: Dict[str, Any]) -> None:
+    """Отображает системную статистику."""
+    table = Table(box=box.ROUNDED, title="Системная статистика")
+    table.add_column("Метрика", style="cyan")
+    table.add_column("Значение", style="magenta")
+    
+    for metric, value in stats.items():
+        table.add_row(metric, str(value))
+    
+    console.print(table)
