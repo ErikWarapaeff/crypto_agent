@@ -16,7 +16,7 @@ LLM_MODEL = "gpt-4"
 LLM_TEMPERATURE = 0
 
 # Настройки приложения
-APP_NAME = "🚀 CRYPTO ANALYSIS AI ASSISTANT 🚀"
+APP_NAME = "🚀 CRYPTO AI ASSISTANT 🚀"
 APP_COLOR = "cyan"
 
 # Устанавливаем переменные окружения

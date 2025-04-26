@@ -1,9 +1,10 @@
 """Основной файл мультиагентной системы криптоанализа."""
 
+import json
 import asyncio
 import sys
 import time
-from typing import List, Dict, Any  
+from typing import List, Dict, Any
 
 from rich.console import Console
 from rich import print as rprint
@@ -15,7 +16,7 @@ from ui.interface import (
     display_response,
     get_multiline_input,
     display_thinking,
-    display_exit_message,   
+    display_exit_message,
     display_separator,
     display_research_result,
     display_task_status,
@@ -38,25 +39,25 @@ async def main():
     # Инициализация системы
     display_welcome()
     system = create_multi_agent_system()
-    
+
     # Основной цикл
     while True:
         try:
             user_input = get_multiline_input()
-            
+
             # Выход из программы
             if user_input.lower() in ["exit", "quit", "q"]:
                 display_exit_message()
                 break
-                
+
             # Специальные команды
             if user_input.startswith('/'):
                 await handle_special_commands(user_input, system)
                 continue
-                
+
             # Обработка обычного запроса
             await process_user_request(user_input, system)
-            
+
         except KeyboardInterrupt:
             console.print("\n[bold yellow]Операция прервана пользователем[/bold yellow]")
         except Exception as e:
@@ -69,87 +70,112 @@ async def handle_special_commands(command: str, system: Any) -> None:
         if len(parts) < 2:
             rprint("[red]Укажите символ токена: /research BTC[/red]")
             return
-            
+
         token = parts[1].strip().upper()
         await perform_deep_research(token, system)
-        
+
     elif command == "/tasks":
         display_all_tasks(system)
-        
+
     elif command == "/agents":
         display_agents_list(system.agents)
-        
+
     elif command.startswith("/task"):
         parts = command.split()
         if len(parts) < 2:
             rprint("[red]Укажите ID задачи: /task TASK_ID[/red]")
             return
         display_task_status(system.get_task_status(parts[1]))
-        
+
     else:
         rprint(f"[red]Неизвестная команда: {command}[/red]")
 
 async def process_user_request(input_text: str, system: Any) -> None:
     """Обрабатывает пользовательский запрос через мультиагентную систему."""
     start_time = time.time()
-    
+
     # Отправляем запрос супервизору
-    
     with display_thinking("Супервизор планирует задачи..."):
         supervisor_initial_response = await system.process_user_input(input_text)
-    
+
+    # Извлекаем ID задач из ответа супервизора
+    task_ids = []
+    for task_id, task in system.tasks.items():
+        if task.status == "pending" and task.created_at.timestamp() > start_time:
+            task_ids.append(task_id)
+
     # Параллельно выполняем все созданные задачи
     with display_thinking("Выполнение запланированных задач..."):
-        tasks_result_list = await system.execute_all_pending_tasks()
-    
-    # Отображаем результаты выполнения задач
-    successful_results = []
-    failed_tasks = []
-    if tasks_result_list: # Если были задачи для выполнения
-        for task_result_info in tasks_result_list:
-            task_id = task_result_info.get("task_id")
-            status = task_result_info.get("status")
-            result_content = task_result_info.get("result")
+        await system.execute_all_pending_tasks()
 
-            if status == "completed" or (isinstance(result_content, str) and not result_content.startswith("[Произошла ошибка")) :
-                 # Считаем успешным, если статус completed ИЛИ если result это строка без ошибки
-                 # (execute_all_pending_tasks может вернуть просто строку из агента)
-                 if isinstance(result_content, dict) and "error" in result_content:
-                      # Если статус completed, но результат - словарь с ошибкой
-                      failed_tasks.append(f"Задача {task_id}: {result_content.get('error', 'Неизвестная ошибка')}")
-                 else:
-                      successful_results.append(str(result_content)) # Собираем успешные результаты
-            elif status and "failed" in status.lower():
-                 error_detail = str(result_content.get("error", result_content) if isinstance(result_content, dict) else result_content)
-                 failed_tasks.append(f"Задача {task_id}: {error_detail}")
-            elif isinstance(result_content, Exception): # Если gather вернул исключение
-                 failed_tasks.append(f"Задача {task_id}: Исключение - {result_content}")
+    # Если были созданы задачи
+    if task_ids:
+        completed_task_ids = []
+        for task_id in task_ids:
+            if task_id in system.tasks and system.tasks[task_id].status == "completed":
+                completed_task_ids.append(task_id)
 
+        if completed_task_ids:
+            with display_thinking("Форматирование отчета с помощью LLM..."):
+                # Собираем результаты задач
+                task_results = {}
+                for task_id in completed_task_ids:
+                    task = system.tasks[task_id]
+                    task_results[task.title] = task.result
 
-        if successful_results:
-            # Если есть успешные результаты, объединяем их
-            final_response_to_display = "\n\n".join(successful_results)
-            if failed_tasks:
-                final_response_to_display += "\n\n[dim]Некоторые подзадачи не удалось выполнить:[/dim]\n" + "\n".join(f"  - {err}" for err in failed_tasks)
-        elif failed_tasks:
-            # Если только ошибки
-            final_response_to_display = "[bold red]Не удалось выполнить запрос:[/bold red]\n" + "\n".join(f"  - {err}" for err in failed_tasks)
+                # Подготавливаем данные для LLM
+                from langchain_openai import ChatOpenAI
+                from config.settings import LLM_MODEL
+
+                formatter_llm = ChatOpenAI(model=LLM_MODEL, temperature=0.2)
+
+                format_prompt = f"""
+                # Задача: Форматирование аналитического отчета
+
+                Создай хорошо структурированный, профессиональный отчет на основе следующих данных анализа.
+
+                ## Инструкции по форматированию:
+                - Используй заголовки и подзаголовки (##, ###)
+                - Выделяй важные цифры и результаты **жирным шрифтом**
+                - Используй эмодзи в начале разделов для улучшения восприятия
+                - Организуй данные в логические разделы
+                - Добавь краткое резюме в начале
+
+                ## Исходный запрос:
+                {input_text}
+
+                ## Данные анализа:
+                {json.dumps(task_results, indent=2, ensure_ascii=False)}
+
+                Форматируй отчет так, чтобы он был максимально информативным и легко читаемым.
+                """
+
+                try:
+                    response = await formatter_llm.ainvoke([{"role": "user", "content": format_prompt}])
+                    final_response_to_display = response.content
+                except Exception as e:
+                    rprint(f"[red]Ошибка при форматировании: {e}[/red]")
+                    final_response_to_display = "\n\n".join([str(result) for result in task_results.values()])
         else:
-            # Если задачи были, но нет ни успехов, ни явных ошибок (странная ситуация)
-             final_response_to_display = supervisor_initial_response # Возвращаемся к ответу супервизора
-             final_response_to_display += "\n[dim](Задачи были выполнены, но результат не получен)[/dim]"
+            # Если нет успешно выполненных задач
+            successful_results = []
+            for task_id in task_ids:
+                if task_id in system.tasks:
+                    task = system.tasks[task_id]
+                    status_info = f"Статус задачи: {task.status}"
+                    if task.result:
+                        successful_results.append(f"{status_info}\n{str(task.result)}")
+                    else:
+                        successful_results.append(f"{status_info}\nРезультат отсутствует")
 
+            final_response_to_display = "\n\n".join(successful_results)
     else:
-        # Если супервизор не создал ни одной задачи (например, ответил сам)
+        # Если супервизор не создал задач
         final_response_to_display = supervisor_initial_response
 
-    # 4. Отображаем финальный ответ
+    # Отображаем финальный ответ
     display_response(final_response_to_display)
 
-    # 5. Отображаем статус выполнения задач (опционально, можно убрать если мешает)
-    # display_task_execution_results(tasks_result_list)
-
-    # 6. Показываем общее время и статистику (как и было)
     total_time = time.time() - start_time
     rprint(f"[dim]Общее время обработки: {total_time:.2f} сек[/dim]")
     display_separator()
@@ -158,7 +184,7 @@ async def process_user_request(input_text: str, system: Any) -> None:
 async def perform_deep_research(token: str, system: Any) -> None:
     """Выполняет глубокое исследование токена через мультиагентную систему."""
     start_time = time.time()
-    
+
     # Создаем задачи исследования
     research_tasks = [
         ("market_analyst", f"Проанализировать рыночные данные для {token}"),
@@ -166,7 +192,7 @@ async def perform_deep_research(token: str, system: Any) -> None:
         ("news_researcher", f"Найти последние новости о {token}"),
         ("protocol_analyst", f"Проанализировать протоколы для {token}")
     ]
-    
+
     # Создаем и выполняем задачи
     task_ids = []
     for agent_id, description in research_tasks:
@@ -174,16 +200,16 @@ async def perform_deep_research(token: str, system: Any) -> None:
             f"Добавить задачу для {agent_id}: {description}"
         )
         task_ids.append(task_id)
-    
+
     # Запускаем выполнение
     with display_thinking(f"Выполнение исследования {token}..."):
         results = await system.execute_all_pending_tasks()
-    
+
     # Объединяем результаты
     merged = system.agents["supervisor"].process_user_input(
         f"Объединить результаты задач {', '.join(task_ids)}"
     )
-    
+
     # Отображаем результаты
     display_research_result(merged, token)
     rprint(f"[dim]Исследование выполнено за {time.time()-start_time:.2f} сек[/dim]")
@@ -198,7 +224,7 @@ def display_system_stats(system: Any) -> None:
         "В процессе": sum(1 for t in system.tasks.values() if t.status == "in_progress"),
         "Ошибок": sum(1 for t in system.tasks.values() if t.status == "failed")
     }
-    
+
     rprint("[bold cyan]Статистика системы:[/bold cyan]")
     for k, v in stats.items():
         rprint(f"  [bold]{k}:[/bold] {v}")
@@ -213,7 +239,7 @@ def display_all_tasks(system: Any) -> None:
             "in_progress": "yellow",
             "failed": "red"
         }.get(task.status, "white")
-        
+
         rprint(f"  [bold]{task_id}[/bold] - {task.title}")
         rprint(f"  Статус: [{status_color}]{task.status}[/{status_color}]")
         rprint(f"  Агент: [blue]{task.assigned_agent_id}[/blue]")

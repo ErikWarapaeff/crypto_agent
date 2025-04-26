@@ -2,6 +2,9 @@ import streamlit as st
 import asyncio
 from datetime import datetime
 import re
+import time
+import json
+
 
 from config.settings import setup_environment, APP_NAME, APP_COLOR, OPENAI_API_KEY
 from core.agent import create_agent
@@ -111,7 +114,7 @@ setup_environment()
 st.set_page_config(
     page_title=APP_NAME,
     page_icon="🚀",
-    layout="wide",
+    layout="wide"
 )
 
 # Проверка наличия API ключей
@@ -130,9 +133,8 @@ if not keys_ready:
 
 # Установка переменных состояния сессии
 if 'agent' not in st.session_state:
-    # Создаем агента с ключом из session_state если есть
-    openai_key = get_api_key("openai") if 'api_keys' in st.session_state else None
-    st.session_state.agent = create_agent()
+    from core.multi_flow import create_multi_agent_system
+    st.session_state.agent = create_multi_agent_system()
 
 if 'messages' not in st.session_state:
     st.session_state.messages = []
@@ -154,7 +156,7 @@ if 'chat_counter' not in st.session_state:
 
 if 'chat_to_rename' not in st.session_state:
     st.session_state.chat_to_rename = None
-    
+
 if 'show_settings' not in st.session_state:
     st.session_state.show_settings = False
 
@@ -344,9 +346,79 @@ def rename_chat(chat_id, new_title):
 # Функция для асинхронной обработки сообщений
 async def process_message(message):
     try:
-        return await st.session_state.agent.process_user_input(message)
+        # Запоминаем время начала для отслеживания новых задач
+        start_time = time.time()
+        
+        # 1. Получаем ответ супервизора
+        initial_response = await st.session_state.agent.process_user_input(message)
+        
+        # 2. Если используется мультиагентная система
+        if hasattr(st.session_state.agent, 'execute_all_pending_tasks') and hasattr(st.session_state.agent, 'tasks'):
+            # Определяем новые задачи, созданные для этого запроса
+            new_tasks = []
+            for task_id, task in st.session_state.agent.tasks.items():
+                if hasattr(task, 'created_at') and task.created_at.timestamp() > start_time - 5:
+                    new_tasks.append(task_id)
+            
+            if new_tasks:
+                # 3. Выполняем все задачи
+                await st.session_state.agent.execute_all_pending_tasks()
+                
+                # 4. Собираем результаты выполненных задач
+                tasks_results = {}
+                for task_id in new_tasks:
+                    if task_id in st.session_state.agent.tasks:
+                        task = st.session_state.agent.tasks[task_id]
+                        if task.status == "completed" and task.result:
+                            tasks_results[task.title] = task.result
+                
+                # 5. Форматируем финальный отчет
+                if tasks_results:
+                    from langchain_openai import ChatOpenAI
+                    from config.settings import LLM_MODEL
+                    import json
+                    
+                    formatter_llm = ChatOpenAI(model=LLM_MODEL, temperature=0.2)
+                    
+                    format_prompt = f"""
+                    # Задача: Форматирование аналитического отчета
+                    
+                    Создай хорошо структурированный, профессиональный отчет на основе следующих данных анализа.
+                    
+                    ## Инструкции по форматированию:
+                    - Используй заголовки и подзаголовки (##, ###)
+                    - Выделяй важные цифры и результаты **жирным шрифтом**
+                    - Используй эмодзи в начале разделов для улучшения восприятия
+                    - Организуй данные в логические разделы
+                    - Добавь краткое резюме в начале
+                    
+                    ## Исходный запрос:
+                    {message}
+                    
+                    ## Данные анализа:
+                    {json.dumps(tasks_results, indent=2, ensure_ascii=False)}
+                    
+                    Форматируй отчет так, чтобы он был максимально информативным и легко читаемым.
+                    """
+                    
+                    try:
+                        response = await formatter_llm.ainvoke([{"role": "user", "content": format_prompt}])
+                        return response.content
+                    except Exception as e:
+                        # Если форматирование не удалось, возвращаем простое объединение
+                        result_text = "# Результаты анализа\n\n"
+                        for title, content in tasks_results.items():
+                            result_text += f"## {title}\n\n{content}\n\n---\n\n"
+                        return result_text
+                
+                # Если нет результатов, возвращаем информационное сообщение
+                return f"{initial_response}\n\nИзвините, не удалось получить результаты анализа. Возможно, специализированные агенты не справились с задачей."
+        
+        # Если это не мультиагентная система или нет новых задач
+        return initial_response
     except Exception as e:
-        return f"Произошла ошибка при обработке запроса: {str(e)}"
+        import traceback
+        return f"Произошла ошибка при обработке запроса: {str(e)}\n\n{traceback.format_exc()}"
 
 def process_pending_request():
     if st.session_state.thinking and hasattr(st.session_state, 'current_question'):
