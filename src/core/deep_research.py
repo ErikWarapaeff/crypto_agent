@@ -67,7 +67,7 @@ class DeepResearchManager:
 
     def __init__(self, llm_model: str = "gpt-4"):
         """Инициализация менеджера исследований."""
-        self.llm = ChatOpenAI(model=llm_model, temperature=0)
+        self.llm = ChatOpenAI(model=llm_model, temperature=0, base_url= 'https://api.vsegpt.ru/v1')
         self.console = Console()
 
     async def get_clarification_questions(self, token_symbol: str) -> List[str]:

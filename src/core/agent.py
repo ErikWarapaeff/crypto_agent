@@ -47,7 +47,7 @@ class CryptoAgent:
     def __init__(self):
         """Инициализация агента и его компонентов."""
         self.state = AgentState()
-        self.llm = ChatOpenAI(model=LLM_MODEL, temperature=LLM_TEMPERATURE)
+        self.llm = ChatOpenAI(model=LLM_MODEL, temperature=LLM_TEMPERATURE, base_url= 'https://api.vsegpt.ru/v1')
         
         # Список всех инструментов
         self.tools = [
