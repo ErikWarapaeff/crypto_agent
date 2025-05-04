@@ -4,27 +4,32 @@ from typing import List
 from langchain_core.tools import tool
 
 @tool
-def analyze_protocol(protocol_id: str, protocol_label: str, chains_to_show: List[str]) -> str:
-    """
-    Получает данные протокола с DeFiLlama и анализирует TVL.
+async def analyze_protocol(protocol_id: str, protocol_label: str, chains_to_show: List[str]) -> str:
+    """Получает и анализирует данные DeFi протокола с DeFiLlama.
+
+    Извлекает рыночную капитализацию (если доступна), текущий TVL (Total Value Locked)
+    и его изменение за последние 30 дней. Также показывает распределение TVL
+    по указанным блокчейнам.
 
     Args:
-        protocol_id: идентификатор протокола в DeFiLlama
-        protocol_label: читаемое название протокола для отображения
-        chains_to_show: список сетей для анализа TVL (например, ["Ethereum", "Arbitrum"])
-    """
-    import requests
-    
-    url = f'https://api.llama.fi/protocol/{protocol_id}'
-    response = requests.get(url)
-    
-    if response.status_code != 200:
-        return f"Ошибка запроса для {protocol_label}: {response.status_code} {response.reason}"
+        protocol_id (str): Идентификатор протокола в DeFiLlama (например, 'uniswap', 'aave').
+        protocol_label (str): Читаемое название протокола для использования в отчете.
+        chains_to_show (List[str]): Список названий сетей (например, ["Ethereum", "Arbitrum", "Polygon"]),
+                                    для которых нужно показать распределение TVL.
 
-    try:
-        protocol_data = response.json()
-    except Exception as e:
-        return f"Ошибка декодирования JSON для {protocol_label}: {e}"
+    Returns:
+        str: Отформатированная строка с анализом протокола или сообщение об ошибке.
+    """
+    async with aiohttp.ClientSession() as session:
+        url = f'https://api.llama.fi/protocol/{protocol_id}'
+        async with session.get(url) as response:
+            if response.status != 200:
+                return f"Ошибка запроса для {protocol_label}: {response.status} {response.reason}"
+
+            try:
+                protocol_data = await response.json()
+            except Exception as e:
+                return f"Ошибка декодирования JSON для {protocol_label}: {e}"
 
     result = f"=== {protocol_label} Summary ===\n\n"
 
@@ -67,13 +72,20 @@ def analyze_protocol(protocol_id: str, protocol_label: str, chains_to_show: List
 
 @tool
 async def analyze_pools_geckoterminal(network: str, protocol_id: str, protocol_label: str) -> str:
-    """
-    Анализирует пулы протокола с использованием данных GeckoTerminal.
+    """Анализирует топ-3 пула ликвидности для указанного DEX протокола в указанной сети,
+    используя данные GeckoTerminal API.
+
+    Возвращает информацию о количестве пулов, топ-3 пулах по количеству транзакций
+    (включая объем, ликвидность, изменение цены), а также общую статистику по объемам.
+    Автоматически пытается нормализовать ID сети и протокола.
 
     Args:
-        network: Идентификатор сети (например, "ethereum", "arbitrum")
-        protocol_id: Идентификатор DEX в GeckoTerminal (например, "uniswap")
-        protocol_label: Читаемое название протокола
+        network (str): Идентификатор сети (например, 'ethereum', 'arbitrum', 'bsc').
+        protocol_id (str): Идентификатор DEX протокола (например, 'uniswap', 'pancakeswap').
+        protocol_label (str): Читаемое название протокола для использования в отчете.
+
+    Returns:
+        str: Отформатированная строка с анализом пулов или сообщение об ошибке/отсутствии данных.
     """
     # Маппинг для коррекции идентификаторов сетей
     network_mapping = {

@@ -9,8 +9,16 @@ def create_coingecko_service():
 
 @tool
 async def get_token_price(symbol: str) -> str:
-    """
-    Получает текущую цену токена по его символу (например, BTC, ETH).
+    """Получает текущую цену указанного токена с CoinGecko.
+
+    Сначала ищет ID токена по символу, затем запрашивает цену в USD.
+
+    Args:
+        symbol (str): Символ токена (например, 'BTC', 'ETH'). Регистр не важен.
+
+    Returns:
+        str: Строка с текущей ценой токена в USD или сообщение об ошибке.
+            Пример: "Текущая цена BTC: 65432.10 USD"
     """
     cg_service = create_coingecko_service()
 
@@ -42,12 +50,17 @@ async def get_token_price(symbol: str) -> str:
 
 @tool
 async def get_trending_coins(limit: Optional[int] = None, include_platform: bool = False) -> str:
-    """
-    Получает список трендовых криптовалют на CoinGecko.
+    """Получает список 7 самых трендовых криптовалют на CoinGecko за последние 24 часа.
+
+    Возвращает отформатированный список с названием, символом, рангом по капитализации и score.
+    Может опционально включать адреса контрактов на разных платформах.
 
     Args:
-        limit: Максимальное количество монет для отображения (по умолчанию показываются все)
-        include_platform: Включать ли информацию о платформах (контрактах)
+        limit (Optional[int]): Максимальное количество монет для возврата (по умолчанию 7).
+        include_platform (bool): Включать ли информацию о платформах (адреса контрактов) для каждой монеты (по умолчанию False).
+
+    Returns:
+        str: Отформатированная строка со списком трендовых монет или сообщение об ошибке.
     """
     cg_service = create_coingecko_service()
 
@@ -87,12 +100,16 @@ async def get_trending_coins(limit: Optional[int] = None, include_platform: bool
 
 @tool
 async def search_cryptocurrencies(query: str, exact_match: bool = False) -> str:
-    """
-    Поиск криптовалют на CoinGecko по названию или символу.
+    """Ищет криптовалюты на CoinGecko по части названия или символа.
+
+    Возвращает отформатированный список найденных монет (до 10) с названием, символом, рангом и ID.
 
     Args:
-        query: Поисковый запрос (например, "bitcoin" или "btc")
-        exact_match: Если True, возвращает только точные совпадения
+        query (str): Поисковый запрос (например, "bitcoin", "sol", "uni").
+        exact_match (bool): Если True, возвращает только точные совпадения по символу или ID (по умолчанию False).
+
+    Returns:
+        str: Отформатированная строка со списком найденных монет или сообщение об ошибке/отсутствии результатов.
     """
     cg_service = create_coingecko_service()
 
