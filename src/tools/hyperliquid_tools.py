@@ -17,11 +17,13 @@ def get_hyperliquid_workflow():
 
 @tool
 async def get_crypto_price(symbol: str) -> str:
-    """
-    Получает текущую цену криптовалюты на HyperLiquid.
+    """Получает текущую цену указанного актива с биржи HyperLiquid.
     
     Args:
-        symbol: Символ актива (например, BTC, ETH, HYPE)
+        symbol (str): Символ актива (например, 'BTC', 'ETH', 'HYPE').
+    
+    Returns:
+        str: Строка с текущей ценой актива или результат вызова workflow.
     """
     workflow = get_hyperliquid_workflow()
     result = workflow.invoke(f"What is {symbol} price now?")
@@ -29,12 +31,16 @@ async def get_crypto_price(symbol: str) -> str:
 
 @tool
 async def get_klines_history(symbol: str, days: int = 7) -> str:
-    """
-    Получает историю свечей (klines) для указанного актива.
+    """Получает историю свечей (OHLCV данные) для указанного актива с HyperLiquid.
+
+    Возвращает данные за указанное количество последних дней.
     
     Args:
-        symbol: Символ актива (например, BTC, ETH, HYPE)
-        days: Количество дней истории (по умолчанию 7)
+        symbol (str): Символ актива (например, 'BTC', 'ETH', 'HYPE').
+        days (int): Количество последних дней, за которые нужна история (по умолчанию 7).
+
+    Returns:
+        str: Строка с историей свечей или результат вызова workflow.
     """
     workflow = get_hyperliquid_workflow()
     result = workflow.invoke(f"Send me {symbol} klines history for last {days} days?")
@@ -42,13 +48,19 @@ async def get_klines_history(symbol: str, days: int = 7) -> str:
 
 @tool
 async def execute_trade(symbol: str, amount: float, side: str = "buy") -> str:
-    """
-    Выполняет торговую операцию на HyperLiquid.
+    """Инициирует запрос на выполнение торговой операции на HyperLiquid.
+    
+    ВАЖНО: Этот инструмент НЕ выполняет сделку сразу. Он возвращает
+    сообщение с деталями запроса и требованием явного подтверждения
+    с помощью инструмента `confirm_trade`.
     
     Args:
-        symbol: Символ актива (например, BTC, ETH, HYPE)
-        amount: Количество для торговли
-        side: Сторона сделки ('buy' или 'sell', по умолчанию 'buy')
+        symbol (str): Символ актива для торговли (например, 'BTC', 'ETH', 'HYPE').
+        amount (float): Количество актива для покупки или продажи. Должно быть положительным.
+        side (str): Сторона сделки: 'buy' (купить) или 'sell' (продать). По умолчанию 'buy'.
+
+    Returns:
+        str: Строка с запросом на подтверждение операции или сообщение об ошибке валидации.
     """
     # Добавляем проверки безопасности
     if side.lower() not in ["buy", "sell"]:
@@ -69,13 +81,18 @@ async def execute_trade(symbol: str, amount: float, side: str = "buy") -> str:
 
 @tool
 async def confirm_trade(symbol: str, amount: float, side: str = "buy") -> str:
-    """
-    Подтверждает и выполняет торговую операцию на HyperLiquid.
+    """Подтверждает и выполняет ранее запрошенную торговую операцию на HyperLiquid.
+
+    Этот инструмент следует вызывать ПОСЛЕ того, как `execute_trade` вернул запрос
+    на подтверждение, и пользователь явно подтвердил намерение.
     
     Args:
-        symbol: Символ актива (например, BTC, ETH, HYPE)
-        amount: Количество для торговли
-        side: Сторона сделки ('buy' или 'sell', по умолчанию 'buy')
+        symbol (str): Символ актива (например, 'BTC', 'ETH', 'HYPE'). Должен совпадать с запросом `execute_trade`.
+        amount (float): Количество актива. Должно совпадать с запросом `execute_trade`.
+        side (str): Сторона сделки ('buy' или 'sell'). Должна совпадать с запросом `execute_trade`.
+
+    Returns:
+        str: Строка с результатом выполнения торговой операции от HyperLiquid.
     """
     workflow = get_hyperliquid_workflow()
     request = f"Make a trade for {amount} {symbol} {side}"
@@ -84,11 +101,15 @@ async def confirm_trade(symbol: str, amount: float, side: str = "buy") -> str:
 
 @tool
 async def get_market_info(symbol: str) -> str:
-    """
-    Получает информацию о рынке для указанного актива на HyperLiquid.
+    """Получает общую рыночную информацию для указанного актива с HyperLiquid.
+
+    Может включать данные о текущей цене, объеме, ставке финансирования и т.д.
     
     Args:
-        symbol: Символ актива (например, BTC, ETH, HYPE)
+        symbol (str): Символ актива (например, 'BTC', 'ETH', 'HYPE').
+
+    Returns:
+        str: Строка с рыночной информацией или результат вызова workflow.
     """
     workflow = get_hyperliquid_workflow()
     result = workflow.invoke(f"Get market info for {symbol}")
@@ -96,8 +117,12 @@ async def get_market_info(symbol: str) -> str:
 
 @tool
 async def get_account_info() -> str:
-    """
-    Получает информацию о текущем аккаунте на HyperLiquid.
+    """Получает информацию о текущем состоянии торгового аккаунта на HyperLiquid.
+
+    Включает данные о балансах, позициях, марже и т.д.
+
+    Returns:
+        str: Строка с информацией об аккаунте или результат вызова workflow.
     """
     workflow = get_hyperliquid_workflow()
     result = workflow.invoke("Get my account information")

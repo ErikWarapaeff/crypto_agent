@@ -12,7 +12,7 @@ COINGECKO_API_KEY = os.getenv("COINGECKO_API_KEY", "")
 BITQUERY_API_KEY = os.getenv("BITQUERY_API_KEY", "")
 
 # Настройки LLM
-LLM_MODEL = "gpt-4"
+LLM_MODEL = "gpt-4o-mini"
 LLM_TEMPERATURE = 0
 
 # Настройки приложения
