@@ -9,7 +9,7 @@ from rich.console import Console
 from rich import print as rprint
 
 from config.settings import setup_environment, OPENAI_API_KEY
-from core.multi_flow import MultiAgentSystem, create_multi_agent_system
+from core.multi_flow_unified import MultiAgentSystem, create_multi_agent_system
 from ui.interface import (
     display_welcome,
     display_response,
